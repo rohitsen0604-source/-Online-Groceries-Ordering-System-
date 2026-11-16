@@ -105,3 +105,16 @@ INSERT IGNORE INTO `fees_list` (`fee_id`, `location`, `amount`, `status`) VALUES
 (1, 'Location 101', 50, 1),
 (2, 'Location 102', 75, 1),
 (3, 'Location 103', 100, 1);
+
+
+-- Seed Sample Products matching existing uploads
+INSERT IGNORE INTO `product_list` (`product_id`, `category_id`, `name`, `description`, `price`, `status`) VALUES
+(1, 3, 'Spam Luncheon Meat', 'Delicious canned luncheon meat 340g', 150.00, 1),
+(2, 3, 'Mega Sardines in Tomato Sauce', 'Canned sardines in rich tomato sauce 155g', 25.00, 1),
+(3, 3, 'Mega Sardines with Chili', 'Canned sardines in spicy tomato sauce with chili 155g', 27.00, 1);
+
+-- Seed Initial Inventory Stock
+INSERT IGNORE INTO `inventory_list` (`inventory_id`, `product_id`, `quantity`, `type`) VALUES
+(1, 1, 100, 1),
+(2, 2, 150, 1),
+(3, 3, 120, 1);

@@ -1,5 +1,10 @@
 <?php
 
+// Enable error reporting for debugging
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
+
 if (!function_exists('get_db_env')) {
     function get_db_env($key, $default = null) {
         $search = strtolower($key);
@@ -51,38 +56,31 @@ if (!function_exists('my_udf_md5')) {
 class DBResult {
     private $stmt;
     public $num_rows = 0;
-    private $rows = null;
+    private $rows = [];
     private $cursor = 0;
+    public $error = '';
 
-    public function __construct($stmt) {
+    public function __construct($stmt = null, $error = '') {
         $this->stmt = $stmt;
+        $this->error = $error;
         if ($stmt instanceof \PDOStatement) {
-            if ($stmt->columnCount() > 0) {
-                try {
+            try {
+                if ($stmt->columnCount() > 0) {
                     $this->rows = $stmt->fetchAll(\PDO::FETCH_BOTH);
                     $this->num_rows = count($this->rows);
-                } catch (\Exception $e) {
-                    $this->rows = [];
-                    $this->num_rows = 0;
                 }
+            } catch (\Exception $e) {
+                $this->rows = [];
+                $this->num_rows = 0;
             }
         }
     }
 
     public function fetchArray($mode = null) {
-        if ($this->rows !== null) {
-            if ($this->cursor < count($this->rows)) {
-                return $this->rows[$this->cursor++];
-            }
-            return false;
+        if ($this->cursor < count($this->rows)) {
+            return $this->rows[$this->cursor++];
         }
-        if (!$this->stmt) return false;
-        try {
-            $row = $this->stmt->fetch(\PDO::FETCH_BOTH);
-            return $row !== false ? $row : false;
-        } catch (\Exception $e) {
-            return false;
-        }
+        return false;
     }
 }
 
@@ -135,7 +133,6 @@ class DBConnection {
 
         // Parse Database URL if provided (e.g. Aiven Service URI)
         if (!empty($db_url)) {
-            // Regex parse handles passwords with special characters (#, @, ?, etc.)
             if (preg_match('/^[a-z0-9+.-]+:\/\/([^:]+):(.*)@([^:\/?#]+)(?::([0-9]+))?(?:\/([^?#]*))?/i', $db_url, $m)) {
                 $user = urldecode($m[1]);
                 $pass = urldecode($m[2]);
@@ -292,11 +289,15 @@ class DBConnection {
             if ($stmt === false) {
                 $err = $this->pdo->errorInfo();
                 $this->last_error = $err[2] ?? 'Query execution failed.';
-                return false;
+                return new DBResult(null, $this->last_error);
             }
             return new DBResult($stmt);
         } catch (\PDOException $e) {
             $this->last_error = $e->getMessage();
+            // If it's a SELECT query, return empty DBResult so callers of fetchArray don't crash!
+            if (preg_match('/^\s*(SELECT|SHOW|DESCRIBE|EXPLAIN)/i', $sql)) {
+                return new DBResult(null, $this->last_error);
+            }
             return false;
         }
     }
@@ -339,129 +340,21 @@ class DBConnection {
     }
 
     private function initializeMySQLTables() {
-        $tables = [
-            "CREATE TABLE IF NOT EXISTS `admin_list` (
-                `admin_id` INT NOT NULL AUTO_INCREMENT,
-                `fullname` VARCHAR(255) NOT NULL,
-                `username` VARCHAR(255) NOT NULL,
-                `password` VARCHAR(255) NOT NULL,
-                `status` TINYINT NOT NULL DEFAULT 1,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (`admin_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "CREATE TABLE IF NOT EXISTS `customer_list` (
-                `customer_id` INT NOT NULL AUTO_INCREMENT,
-                `fullname` VARCHAR(255) NOT NULL,
-                `username` VARCHAR(255) NOT NULL,
-                `password` VARCHAR(255) NOT NULL,
-                `email` VARCHAR(255) NOT NULL,
-                `contact` VARCHAR(50) NOT NULL,
-                `address` TEXT NOT NULL,
-                `status` TINYINT NOT NULL DEFAULT 1,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                `date_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (`customer_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "CREATE TABLE IF NOT EXISTS `category_list` (
-                `category_id` INT NOT NULL AUTO_INCREMENT,
-                `name` VARCHAR(255) NOT NULL,
-                `status` TINYINT NOT NULL DEFAULT 1,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (`category_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "CREATE TABLE IF NOT EXISTS `fees_list` (
-                `fee_id` INT NOT NULL AUTO_INCREMENT,
-                `location` VARCHAR(255) NOT NULL,
-                `amount` DOUBLE NOT NULL DEFAULT 0,
-                `status` TINYINT NOT NULL DEFAULT 1,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (`fee_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "CREATE TABLE IF NOT EXISTS `product_list` (
-                `product_id` INT NOT NULL AUTO_INCREMENT,
-                `category_id` INT NOT NULL,
-                `name` VARCHAR(255) NOT NULL,
-                `description` TEXT NOT NULL,
-                `price` DOUBLE NOT NULL DEFAULT 0,
-                `status` TINYINT NOT NULL DEFAULT 1,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                `date_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (`product_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "CREATE TABLE IF NOT EXISTS `inventory_list` (
-                `inventory_id` INT NOT NULL AUTO_INCREMENT,
-                `product_id` INT NOT NULL,
-                `quantity` DOUBLE NOT NULL,
-                `type` TINYINT NOT NULL DEFAULT 1,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (`inventory_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "CREATE TABLE IF NOT EXISTS `cart_list` (
-                `customer_id` INT NOT NULL,
-                `product_id` INT NOT NULL,
-                `quantity` DOUBLE NOT NULL,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "CREATE TABLE IF NOT EXISTS `order_list` (
-                `order_id` INT NOT NULL AUTO_INCREMENT,
-                `customer_id` INT NOT NULL,
-                `transaction_code` VARCHAR(100) NOT NULL,
-                `fee_id` INT NOT NULL,
-                `delivery_address` TEXT NOT NULL,
-                `total_amount` DOUBLE NOT NULL,
-                `status` TINYINT NOT NULL DEFAULT 0,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (`order_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "CREATE TABLE IF NOT EXISTS `order_items` (
-                `order_id` INT NOT NULL,
-                `inventory_id` INT NOT NULL,
-                `product_id` INT NOT NULL,
-                `quantity` DOUBLE NOT NULL,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-
-            "INSERT IGNORE INTO `admin_list` (`admin_id`, `fullname`, `username`, `password`, `status`, `date_created`)
-             VALUES (1, 'Administrator', 'admin', MD5('admin123'), 1, CURRENT_TIMESTAMP);"
-        ];
-
-        foreach ($tables as $t) {
-            try {
-                $this->pdo->exec($t);
-            } catch (\Exception $e) {
-                // Ignore if table/entry already exists
+        if (file_exists(__DIR__ . '/schema.sql')) {
+            $sql_content = file_get_contents(__DIR__ . '/schema.sql');
+            // Remove comments
+            $sql_content = preg_replace('/--.*$/m', '', $sql_content);
+            $statements = array_filter(array_map('trim', explode(';', $sql_content)));
+            foreach ($statements as $stmt) {
+                if (!empty($stmt)) {
+                    try {
+                        $this->pdo->exec($stmt);
+                    } catch (\PDOException $e) {
+                        // ignore if already exists
+                    }
+                }
             }
         }
-
-        // Seed default categories if empty
-        try {
-            $cat_count = $this->pdo->query("SELECT count(*) FROM `category_list`")->fetchColumn();
-            if ($cat_count == 0) {
-                $this->pdo->exec("INSERT INTO `category_list` (`category_id`, `name`, `status`) VALUES
-                    (1, 'Snacks', 1),
-                    (2, 'Beverages', 1),
-                    (3, 'Canned Goods', 1)");
-            }
-        } catch (\Exception $e) {}
-
-        // Seed default delivery fees if empty
-        try {
-            $fee_count = $this->pdo->query("SELECT count(*) FROM `fees_list`")->fetchColumn();
-            if ($fee_count == 0) {
-                $this->pdo->exec("INSERT INTO `fees_list` (`fee_id`, `location`, `amount`, `status`) VALUES
-                    (1, 'Location 101', 50, 1),
-                    (2, 'Location 102', 75, 1),
-                    (3, 'Location 103', 100, 1)");
-            }
-        } catch (\Exception $e) {}
     }
 
     private function initializeSQLiteTables() {

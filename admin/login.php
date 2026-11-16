@@ -42,7 +42,7 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
                         <input type="password" id="password" name="password" class="form-control form-control-sm rounded-0" required>
                     </div>
                     <div class="form-group d-flex w-100 justify-content-between">
-                        <a href="./attendance.php">Go to Public Side</a>
+                        <a href="../">Go to Public Side</a>
                         <button class="btn btn-sm btn-primary rounded-0 my-1">Login</button>
                     </div>
                 </form>

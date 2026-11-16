@@ -47,7 +47,9 @@
                     $where = " and (p.`name` like '%{$_GET['search']}%' or p.`description` like '%{$_GET['search']}%' or c.`name` like '%{$_GET['search']}%') ";
                 }
                 $qry = $conn->query("SELECT p.*,c.name as cname FROM `product_list` p inner join `category_list` c on p.category_id = c.category_id where p.`status` = 1 {$where} order by p.`name` asc");
+                $prod_count = 0;
                 while($row = $qry->fetchArray()):
+                $prod_count++;
                 ?>
                 <a class="col prod-item text-dark text-decoration-none" href="javascript:void(0)" data-id="<?php echo $row['product_id'] ?>">
                     <div class="card h-100">
@@ -64,7 +66,7 @@
                 <?php endwhile; ?>
             </div>
             <?php 
-            if(!$qry->fetchArray()): ?>
+            if($prod_count == 0): ?>
             <center>
                 <?php if(isset($_GET['search'])): ?>
                 <div class="fs-5"><b><i>No product found.</i></b></div>
