@@ -151,9 +151,9 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'products';
                     
                 </ul>
             </div>
-            <div>
+            <div class="d-flex align-items-center">
             <?php if(isset($_SESSION['customer_id']) && $_SESSION['customer_id'] > 0): ?>
-            <div class="dropdown">
+            <div class="dropdown me-2">
                 <button class="btn btn-secondary dropdown-toggle bg-transparent  text-light border-0" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
                     Hello <?php echo $_SESSION['fullname'] ?>
                 </button>
@@ -163,11 +163,11 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'products';
                 </ul>
             </div>
             <?php else: ?>
-                <a href="javascript:void(0)" id="login-btn" class="text-decoration-none">Login</a>
-                |
-                <a href="javascript:void(0)" id="register-btn" class="text-decoration-none">Register</a>
+                <a href="javascript:void(0)" id="login-btn" class="text-decoration-none text-light me-2">Login</a>
+                <span class="text-light me-2">|</span>
+                <a href="javascript:void(0)" id="register-btn" class="text-decoration-none text-light me-3">Register</a>
             <?php endif; ?>
-
+                <a href="./admin" class="btn btn-sm btn-outline-light rounded-pill px-3" title="Admin Panel"><i class="fa fa-user-shield me-1"></i> Admin Login</a>
             </div>
         </div>
     </nav>
