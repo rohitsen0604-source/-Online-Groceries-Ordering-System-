@@ -1,29 +1,34 @@
-# Online Grocery Management System
+# 🛒 Online Grocery Management System
 
-PHP-based Online Grocery Ordering and Management System, containerized with Docker and deployed on **Render** using a cloud-hosted **Aiven MySQL** database.
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://online-groceries-ordering-system.onrender.com/)
+[![Database](https://img.shields.io/badge/Database-Aiven_MySQL-00758F?style=for-the-badge&logo=mysql&logoColor=white)](https://aiven.io)
+[![PHP](https://img.shields.io/badge/PHP-8.2-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://php.net)
+
+PHP-based Online Grocery Ordering and Management System, containerized with Docker and deployed live on **Render** with a cloud-hosted **Aiven MySQL** database.
 
 ---
 
-## 🌐 Live Application Links
+## 🔗 Live Application URLs
 
-| Portal | URL | Description |
+| Portal | Live Link | Purpose |
 | :--- | :--- | :--- |
-| 🛒 **Customer Store (Public)** | [https://online-groceries-ordering-system.onrender.com/](https://online-groceries-ordering-system.onrender.com/) | Browse items, add to cart, register/login, and place orders. |
-| 🛡️ **Admin Panel** | [https://online-groceries-ordering-system.onrender.com/admin/](https://online-groceries-ordering-system.onrender.com/admin/) | Manage products, inventory, orders, categories, and customers. |
+| 🛒 **Public Customer Store** | **[https://online-groceries-ordering-system.onrender.com/](https://online-groceries-ordering-system.onrender.com/)** | Browse groceries, add items to cart, register/login, and place orders. |
+| 🛡️ **Admin Management Portal** | **[https://online-groceries-ordering-system.onrender.com/admin/](https://online-groceries-ordering-system.onrender.com/admin/)** | Manage products, inventory/stock, customer orders, and categories. |
 
 ---
 
 ## 🔑 Login Credentials
 
-### 🛡️ Administrator Account
-Use these credentials to log in to the **Admin Panel** (`/admin`):
+### 🛡️ Administrator Login (Owner / Manager)
 - **Admin Portal URL**: [https://online-groceries-ordering-system.onrender.com/admin/](https://online-groceries-ordering-system.onrender.com/admin/)
 - **Username / ID**: `admin`
 - **Password**: `admin123`
 
-### 👤 Customer Account
-- Customers can create their own account anytime by clicking the **Register** button on the public storefront.
-- Once registered, customers can log in using their credentials to view their cart and manage their orders.
+*(Note: Admin panel me jakar aap naye products aur photos add kar sakte ho, stock badha sakte ho, aur customer ke orders confirm/deliver mark kar sakte ho).*
+
+### 👤 Customer Login (Shopper)
+- **Customer Store URL**: [https://online-groceries-ordering-system.onrender.com/](https://online-groceries-ordering-system.onrender.com/)
+- Customer website kholkar top-right par **Register** button se naya account bana sakte hain aur shopping kar sakte hain.
 
 ---
 
@@ -34,13 +39,13 @@ Use these credentials to log in to the **Admin Panel** (`/admin`):
 - **Stock Indicators**: Real-time product availability and price display.
 - **Shopping Cart**: Add items, update quantities, and review order totals.
 - **Checkout & Orders**: Place grocery orders with delivery details and track order status in **My Orders**.
-- **Direct Admin Shortcut**: Quick button in the header navbar to switch directly to the Admin Portal.
+- **Admin Quick Button**: Direct button in the header navbar to switch directly to the Admin Portal.
 
 ### 🛡️ Admin Management Panel:
 - **Dashboard Overview**: Summary of categories, products, pending orders, and total customers.
 - **Product Management**: Add, edit, or delete grocery products with photos and descriptions.
 - **Inventory & Stocking**: Restock inventory, track quantities in/out, and manage stock alerts.
-- **Order Processing**: View incoming customer orders, confirm items, and update delivery status (Pending, Confirmed, Shipped, Delivered, Cancelled).
+- **Order Processing**: View incoming customer orders, confirm items, and update delivery status (*Pending, Confirmed, Shipped, Delivered, Cancelled*).
 - **Category & Fees Configuration**: Organize store departments and customize delivery charges.
 
 ---
@@ -49,12 +54,12 @@ Use these credentials to log in to the **Admin Panel** (`/admin`):
 
 ### 1. Prerequisites
 - **GitHub Repository**: [https://github.com/rohitsen0604-source/-Online-Groceries-Ordering-System-](https://github.com/rohitsen0604-source/-Online-Groceries-Ordering-System-)
-- **Render Web Service**: Connected via Docker.
+- **Render Web Service**: Connected via Docker runtime.
 - **Aiven MySQL Database**: SSL-enabled cloud MySQL instance.
 
 ---
 
-### 2. Environment Variables configured on Render
+### 2. Environment Variables Configured on Render
 
 In your Render Service settings under **Environment**, set the database variables:
 
@@ -66,7 +71,7 @@ DB_PASS=YOUR_AIVEN_PASSWORD
 DB_NAME=defaultdb
 ```
 
-> **Note**: Aiven MySQL enforces strict primary key requirements (`sql_require_primary_key = ON`) and SSL mode. The app includes SSL auto-negotiation (`PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT = false`) and schema definitions with explicit primary keys on all tables.
+> **Note**: Aiven MySQL enforces strict primary key requirements (`sql_require_primary_key = ON`) and SSL mode. The application includes SSL auto-negotiation (`PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT = false`) and schema definitions with explicit primary keys on all tables.
 
 ---
 
