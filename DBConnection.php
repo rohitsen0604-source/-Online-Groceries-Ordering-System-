@@ -2,10 +2,42 @@
 
 if (!function_exists('get_db_env')) {
     function get_db_env($key, $default = null) {
-        if (isset($_ENV[$key]) && $_ENV[$key] !== '') return $_ENV[$key];
-        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') return $_SERVER[$key];
+        $search = strtolower($key);
+
+        // Check $_ENV
+        if (!empty($_ENV)) {
+            foreach ($_ENV as $k => $v) {
+                if (strtolower($k) === $search && $v !== null && $v !== '') {
+                    return $v;
+                }
+            }
+        }
+
+        // Check $_SERVER
+        if (!empty($_SERVER)) {
+            foreach ($_SERVER as $k => $v) {
+                if (strtolower($k) === $search && $v !== null && $v !== '') {
+                    return $v;
+                }
+            }
+        }
+
+        // Check getenv() array
+        $all = getenv();
+        if (is_array($all)) {
+            foreach ($all as $k => $v) {
+                if (strtolower($k) === $search && $v !== null && $v !== '') {
+                    return $v;
+                }
+            }
+        }
+
+        // Fallback standard getenv
         $val = getenv($key);
-        if ($val !== false && $val !== '') return $val;
+        if ($val !== false && $val !== '') {
+            return $val;
+        }
+
         return $default;
     }
 }
@@ -60,11 +92,12 @@ class DBConnection {
     protected $last_error = '';
 
     public function __construct() {
-        // 1. Check for database connection string or individual environment variables
+        // 1. Check for database connection string (URL format)
         $db_url = get_db_env('DATABASE_URL') 
             ?: get_db_env('MYSQL_URL') 
             ?: get_db_env('SERVICE_URI');
 
+        // 2. Individual database parameters
         $host = get_db_env('DB_HOST') 
             ?: get_db_env('MYSQL_HOST') 
             ?: get_db_env('MYSQLHOST') 
@@ -81,9 +114,19 @@ class DBConnection {
             ?: get_db_env('AIVEN_USER');
 
         $pass = get_db_env('DB_PASSWORD') 
+            ?: get_db_env('DB_PASS')
+            ?: get_db_env('DB_PASSWD')
             ?: get_db_env('MYSQL_PASSWORD') 
+            ?: get_db_env('MYSQL_PASS') 
             ?: get_db_env('MYSQLPASSWORD') 
-            ?: get_db_env('AIVEN_PASSWORD');
+            ?: get_db_env('MYSQLPASS') 
+            ?: get_db_env('MYSQL_PWD')
+            ?: get_db_env('AIVEN_PASSWORD')
+            ?: get_db_env('AIVEN_PASS')
+            ?: get_db_env('DATABASE_PASSWORD')
+            ?: get_db_env('DATABASE_PASS')
+            ?: get_db_env('PASSWORD')
+            ?: get_db_env('PASS');
 
         $dbname = get_db_env('DB_NAME') 
             ?: get_db_env('MYSQL_DATABASE') 
@@ -92,23 +135,49 @@ class DBConnection {
 
         // Parse Database URL if provided (e.g. Aiven Service URI)
         if (!empty($db_url)) {
-            $parsed = parse_url($db_url);
-            if ($parsed) {
-                if (!empty($parsed['host'])) $host = $parsed['host'];
-                if (!empty($parsed['port'])) $port = $parsed['port'];
-                if (!empty($parsed['user'])) $user = urldecode($parsed['user']);
-                if (isset($parsed['pass'])) $pass = urldecode($parsed['pass']);
-                if (!empty($parsed['path'])) $dbname = ltrim($parsed['path'], '/');
+            // Regex parse handles passwords with special characters (#, @, ?, etc.)
+            if (preg_match('/^[a-z0-9+.-]+:\/\/([^:]+):(.*)@([^:\/?#]+)(?::([0-9]+))?(?:\/([^?#]*))?/i', $db_url, $m)) {
+                $user = urldecode($m[1]);
+                $pass = urldecode($m[2]);
+                $host = $m[3];
+                if (!empty($m[4])) $port = $m[4];
+                if (!empty($m[5])) $dbname = $m[5];
+            } else {
+                $parsed = parse_url($db_url);
+                if ($parsed) {
+                    if (!empty($parsed['host'])) $host = $parsed['host'];
+                    if (!empty($parsed['port'])) $port = $parsed['port'];
+                    if (!empty($parsed['user'])) $user = urldecode($parsed['user']);
+                    if (isset($parsed['pass'])) $pass = urldecode($parsed['pass']);
+                    if (!empty($parsed['path'])) $dbname = ltrim($parsed['path'], '/');
+                }
             }
         }
 
-        // 2. If MySQL parameters are present, connect to MySQL
+        // Clean up accidental quotes from password
+        if ($pass !== null && $pass !== '') {
+            $pass = trim($pass);
+            if ((str_starts_with($pass, '"') && str_ends_with($pass, '"')) ||
+                (str_starts_with($pass, "'") && str_ends_with($pass, "'"))) {
+                $pass = substr($pass, 1, -1);
+            }
+        }
+
+        // 3. Connect to MySQL if host is present
         if (!empty($host)) {
             $this->db_type = 'mysql';
             $port = !empty($port) ? (int)$port : 3306;
             $user = !empty($user) ? $user : 'avnadmin';
-            $pass = !empty($pass) ? $pass : '';
             $dbname = !empty($dbname) ? $dbname : 'defaultdb';
+
+            // Check if password is missing
+            if ($pass === null || $pass === '') {
+                $this->renderConnectionError(
+                    "Database Password Missing",
+                    "MySQL host was found ('{$host}') and user is '{$user}', but <strong>DB_PASSWORD</strong> is not set or empty in Render Environment Variables.",
+                    $host, $port, $user, $dbname, false
+                );
+            }
 
             $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
             $options = [
@@ -117,8 +186,7 @@ class DBConnection {
                 \PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
             ];
 
-            // Aiven MySQL requires SSL. Setting VERIFY_SERVER_CERT to false enables SSL transport
-            // without requiring custom CA certificate bundles.
+            // Aiven MySQL requires SSL
             $options[\PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
             if (file_exists(__DIR__ . '/ca.pem')) {
                 $options[\PDO::MYSQL_ATTR_SSL_CA] = __DIR__ . '/ca.pem';
@@ -128,11 +196,14 @@ class DBConnection {
                 $this->pdo = new \PDO($dsn, $user, $pass, $options);
                 $this->initializeMySQLTables();
             } catch (\PDOException $e) {
-                $this->last_error = "MySQL Connection failed: " . $e->getMessage();
-                die($this->last_error);
+                $this->renderConnectionError(
+                    "MySQL Connection Failed",
+                    $e->getMessage(),
+                    $host, $port, $user, $dbname, true, strlen($pass)
+                );
             }
         } else {
-            // 3. Fallback to SQLite (local development)
+            // 4. Fallback to SQLite (local development)
             $this->db_type = 'sqlite';
             $db_dir = __DIR__ . '/db';
             if (!is_dir($db_dir)) {
@@ -156,10 +227,64 @@ class DBConnection {
         }
     }
 
+    private function renderConnectionError($title, $msg, $host, $port, $user, $dbname, $has_pass, $pass_len = 0) {
+        http_response_code(500);
+        $pass_status = $has_pass 
+            ? "<span style='color:green;'>Received ({$pass_len} characters)</span>" 
+            : "<span style='color:red;'>NOT FOUND / EMPTY</span>";
+
+        echo "<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <title>Database Connection Error</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #1e293b; padding: 40px 20px; }
+                .card { max-width: 650px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e2e8f0; }
+                .header { background: #ef4444; color: white; padding: 20px 24px; }
+                .header h2 { margin: 0; font-size: 20px; }
+                .body { padding: 24px; }
+                .error-box { background: #fee2e2; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; font-family: monospace; font-size: 14px; word-break: break-all; color: #991b1b; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+                td.label { font-weight: bold; width: 140px; color: #64748b; }
+                .help { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; font-size: 14px; }
+                .help h4 { margin: 0 0 8px 0; color: #166534; }
+                code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+            </style>
+        </head>
+        <body>
+            <div class='card'>
+                <div class='header'>
+                    <h2>⚠️ {$title}</h2>
+                </div>
+                <div class='body'>
+                    <div class='error-box'>{$msg}</div>
+                    <table>
+                        <tr><td class='label'>DB_HOST</td><td>{$host}</td></tr>
+                        <tr><td class='label'>DB_PORT</td><td>{$port}</td></tr>
+                        <tr><td class='label'>DB_USER</td><td>{$user}</td></tr>
+                        <tr><td class='label'>DB_NAME</td><td>{$dbname}</td></tr>
+                        <tr><td class='label'>DB_PASSWORD</td><td>{$pass_status}</td></tr>
+                    </table>
+                    <div class='help'>
+                        <h4>💡 Solution for Render:</h4>
+                        <p>Render Dashboard &gt; Service &gt; <strong>Environment</strong> me jayein aur check karein:</p>
+                        <ul>
+                            <li><strong>DB_PASSWORD</strong> ka naam sahi ho aur value me Aiven password paste kiya ho.</li>
+                            <li>Ya <strong>DATABASE_URL</strong> me pura Service URI (with password) set karein.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>";
+        exit;
+    }
+
     public function query($sql) {
         $this->last_error = '';
         try {
-            // Translate SQLite last_insert_rowid() if running on MySQL
             if ($this->db_type === 'mysql') {
                 $sql = preg_replace('/last_insert_rowid\(\)/i', 'LAST_INSERT_ID()', $sql);
             }
