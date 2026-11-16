@@ -420,10 +420,14 @@ class DBConnection {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
             "CREATE TABLE IF NOT EXISTS `cart_list` (
+                `cart_id` INT NOT NULL AUTO_INCREMENT,
                 `customer_id` INT NOT NULL,
                 `product_id` INT NOT NULL,
                 `quantity` DOUBLE NOT NULL,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`cart_id`),
+                KEY `idx_cust` (`customer_id`),
+                KEY `idx_prod` (`product_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
             "CREATE TABLE IF NOT EXISTS `order_list` (
@@ -439,11 +443,14 @@ class DBConnection {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
             "CREATE TABLE IF NOT EXISTS `order_items` (
+                `order_item_id` INT NOT NULL AUTO_INCREMENT,
                 `order_id` INT NOT NULL,
                 `inventory_id` INT NOT NULL,
                 `product_id` INT NOT NULL,
                 `quantity` DOUBLE NOT NULL,
-                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`order_item_id`),
+                KEY `idx_order` (`order_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
             // Default Admin Account: admin / admin123
