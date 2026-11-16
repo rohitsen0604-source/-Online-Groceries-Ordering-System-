@@ -138,7 +138,9 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'products';
 
                     <li class="nav-item">
                         <?php 
-                         $count = $conn->query("SELECT SUM(quantity) as total FROM `cart_list` where `customer_id` = '{$_SESSION['customer_id']}'")->fetchArray()['total'];
+                         $cart_res = $conn->query("SELECT SUM(quantity) as total FROM `cart_list` where `customer_id` = '{$_SESSION['customer_id']}'");
+                         $cart_row = $cart_res ? $cart_res->fetchArray() : false;
+                         $count = ($cart_row && isset($cart_row['total']) && is_numeric($cart_row['total'])) ? $cart_row['total'] : 0;
                         ?>
                         <a class="nav-link <?php echo $page == "cart" ? "active" :"" ?>" href="./?page=cart">Cart <span id="cart_count" class="badge badge-pill bg-light text-dark"><?php echo $count > 0 ? $count : 0 ?></span></a>
                     </li>

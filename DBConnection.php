@@ -189,16 +189,32 @@ class DBConnection {
                 $options[\PDO::MYSQL_ATTR_SSL_CA] = __DIR__ . '/ca.pem';
             }
 
+            // Try connecting to database. If database doesn't exist, connect to server and create it
             try {
+                $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
                 $this->pdo = new \PDO($dsn, $user, $pass, $options);
-                $this->initializeMySQLTables();
             } catch (\PDOException $e) {
-                $this->renderConnectionError(
-                    "MySQL Connection Failed",
-                    $e->getMessage(),
-                    $host, $port, $user, $dbname, true, strlen($pass)
-                );
+                try {
+                    $dsn_no_db = "mysql:host={$host};port={$port};charset=utf8mb4";
+                    $this->pdo = new \PDO($dsn_no_db, $user, $pass, $options);
+                    $this->pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbname}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+                    $this->pdo->exec("USE `{$dbname}`;");
+                } catch (\PDOException $e2) {
+                    $this->renderConnectionError(
+                        "MySQL Connection Failed",
+                        $e->getMessage() . " (DB Create: " . $e2->getMessage() . ")",
+                        $host, $port, $user, $dbname, true, strlen($pass)
+                    );
+                }
             }
+
+            // Ensure database is selected and initialize tables
+            try {
+                $this->pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbname}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+                $this->pdo->exec("USE `{$dbname}`;");
+            } catch (\Exception $e) {}
+
+            $this->initializeMySQLTables();
         } else {
             // 4. Fallback to SQLite (local development)
             $this->db_type = 'sqlite';
@@ -340,19 +356,130 @@ class DBConnection {
     }
 
     private function initializeMySQLTables() {
-        if (file_exists(__DIR__ . '/schema.sql')) {
-            $sql_content = file_get_contents(__DIR__ . '/schema.sql');
-            // Remove comments
-            $sql_content = preg_replace('/--.*$/m', '', $sql_content);
-            $statements = array_filter(array_map('trim', explode(';', $sql_content)));
-            foreach ($statements as $stmt) {
-                if (!empty($stmt)) {
-                    try {
-                        $this->pdo->exec($stmt);
-                    } catch (\PDOException $e) {
-                        // ignore if already exists
-                    }
-                }
+        $tables = [
+            "CREATE TABLE IF NOT EXISTS `admin_list` (
+                `admin_id` INT NOT NULL AUTO_INCREMENT,
+                `fullname` VARCHAR(255) NOT NULL,
+                `username` VARCHAR(255) NOT NULL,
+                `password` VARCHAR(255) NOT NULL,
+                `status` TINYINT NOT NULL DEFAULT 1,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`admin_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            "CREATE TABLE IF NOT EXISTS `customer_list` (
+                `customer_id` INT NOT NULL AUTO_INCREMENT,
+                `fullname` VARCHAR(255) NOT NULL,
+                `username` VARCHAR(255) NOT NULL,
+                `password` VARCHAR(255) NOT NULL,
+                `email` VARCHAR(255) NOT NULL,
+                `contact` VARCHAR(50) NOT NULL,
+                `address` TEXT NOT NULL,
+                `status` TINYINT NOT NULL DEFAULT 1,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `date_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`customer_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            "CREATE TABLE IF NOT EXISTS `category_list` (
+                `category_id` INT NOT NULL AUTO_INCREMENT,
+                `name` VARCHAR(255) NOT NULL,
+                `status` TINYINT NOT NULL DEFAULT 1,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`category_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            "CREATE TABLE IF NOT EXISTS `fees_list` (
+                `fee_id` INT NOT NULL AUTO_INCREMENT,
+                `location` VARCHAR(255) NOT NULL,
+                `amount` DOUBLE NOT NULL DEFAULT 0,
+                `status` TINYINT NOT NULL DEFAULT 1,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`fee_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            "CREATE TABLE IF NOT EXISTS `product_list` (
+                `product_id` INT NOT NULL AUTO_INCREMENT,
+                `category_id` INT NOT NULL,
+                `name` VARCHAR(255) NOT NULL,
+                `description` TEXT NOT NULL,
+                `price` DOUBLE NOT NULL DEFAULT 0,
+                `status` TINYINT NOT NULL DEFAULT 1,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `date_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`product_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            "CREATE TABLE IF NOT EXISTS `inventory_list` (
+                `inventory_id` INT NOT NULL AUTO_INCREMENT,
+                `product_id` INT NOT NULL,
+                `quantity` DOUBLE NOT NULL,
+                `type` TINYINT NOT NULL DEFAULT 1,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`inventory_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            "CREATE TABLE IF NOT EXISTS `cart_list` (
+                `customer_id` INT NOT NULL,
+                `product_id` INT NOT NULL,
+                `quantity` DOUBLE NOT NULL,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            "CREATE TABLE IF NOT EXISTS `order_list` (
+                `order_id` INT NOT NULL AUTO_INCREMENT,
+                `customer_id` INT NOT NULL,
+                `transaction_code` VARCHAR(100) NOT NULL,
+                `fee_id` INT NOT NULL,
+                `delivery_address` TEXT NOT NULL,
+                `total_amount` DOUBLE NOT NULL,
+                `status` TINYINT NOT NULL DEFAULT 0,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`order_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            "CREATE TABLE IF NOT EXISTS `order_items` (
+                `order_id` INT NOT NULL,
+                `inventory_id` INT NOT NULL,
+                `product_id` INT NOT NULL,
+                `quantity` DOUBLE NOT NULL,
+                `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+            // Default Admin Account: admin / admin123
+            "INSERT IGNORE INTO `admin_list` (`admin_id`, `fullname`, `username`, `password`, `status`, `date_created`)
+             VALUES (1, 'Administrator', 'admin', MD5('admin123'), 1, CURRENT_TIMESTAMP);",
+
+            // Default Categories
+            "INSERT IGNORE INTO `category_list` (`category_id`, `name`, `status`) VALUES
+             (1, 'Snacks', 1),
+             (2, 'Beverages', 1),
+             (3, 'Canned Goods', 1);",
+
+            // Default Delivery Fees
+            "INSERT IGNORE INTO `fees_list` (`fee_id`, `location`, `amount`, `status`) VALUES
+             (1, 'Location 101', 50, 1),
+             (2, 'Location 102', 75, 1),
+             (3, 'Location 103', 100, 1);",
+
+            // Sample Products matching existing uploads in repo
+            "INSERT IGNORE INTO `product_list` (`product_id`, `category_id`, `name`, `description`, `price`, `status`) VALUES
+             (1, 3, 'Spam Luncheon Meat', 'Delicious canned luncheon meat 340g', 150.00, 1),
+             (2, 3, 'Mega Sardines in Tomato Sauce', 'Canned sardines in rich tomato sauce 155g', 25.00, 1),
+             (3, 3, 'Mega Sardines with Chili', 'Canned sardines in spicy tomato sauce with chili 155g', 27.00, 1);",
+
+            // Initial Inventory Stock
+            "INSERT IGNORE INTO `inventory_list` (`inventory_id`, `product_id`, `quantity`, `type`) VALUES
+             (1, 1, 100, 1),
+             (2, 2, 150, 1),
+             (3, 3, 120, 1);"
+        ];
+
+        foreach ($tables as $t) {
+            try {
+                $this->pdo->exec($t);
+            } catch (\PDOException $e) {
+                // Ignore if exists
             }
         }
     }
