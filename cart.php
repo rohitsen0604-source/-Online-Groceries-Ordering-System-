@@ -22,7 +22,9 @@
                         <?php 
                         $qry = $conn->query("SELECT c.*,p.name as pname, p.description,p.price,cc.name as cname FROM `cart_list` c inner join `product_list` p on c.product_id = p.product_id inner join `category_list` cc on p.category_id = cc.category_id where c.`customer_id` = '{$_SESSION['customer_id']}'");
                         $total = 0;
+                        $cart_items_count = 0;
                         while($row=$qry->fetchArray()):
+                        $cart_items_count++;
                         $total += $row['quantity'] * $row['price'];
                         ?>
                         <tr class="item" data-id="<?php echo $row['product_id'] ?>">
@@ -55,7 +57,7 @@
                             </td>
                         </tr>
                         <?php endwhile; ?>
-                        <?php if(!$qry->fetchArray()): ?>
+                        <?php if($cart_items_count == 0): ?>
                             <tr>
                                 <th class="text-center" colspan='3'>Cart is empty. <a href="./">Explore Products</a></th>
                             </tr>

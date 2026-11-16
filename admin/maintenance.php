@@ -26,7 +26,9 @@
                         <ul class="list-group">
                             <?php 
                             $dept_qry = $conn->query("SELECT * FROM `category_list` order by `name` asc");
+                            $cat_count = 0;
                             while($row = $dept_qry->fetchArray()):
+                            $cat_count++;
                             ?>
                             <li class="list-group-item d-flex">
                                 <div class="col-auto flex-grow-1">
@@ -46,7 +48,7 @@
                                 </div>
                             </li>
                             <?php endwhile; ?>
-                            <?php if(!$dept_qry->fetchArray()): ?>
+                            <?php if($cat_count == 0): ?>
                                 <li class="list-group-item text-center">No data listed yet.</li>
                             <?php endif; ?>
                         </ul>
@@ -63,7 +65,9 @@
                         <ul class="list-group">
                             <?php 
                             $dept_qry = $conn->query("SELECT * FROM `fees_list` order by `location` asc");
+                            $fee_count = 0;
                             while($row = $dept_qry->fetchArray()):
+                            $fee_count++;
                             ?>
                             <li class="list-group-item d-flex">
                                 <div class="col-auto flex-grow-1">
@@ -88,7 +92,7 @@
                                 </div>
                             </li>
                             <?php endwhile; ?>
-                            <?php if(!$dept_qry->fetchArray()): ?>
+                            <?php if($fee_count == 0): ?>
                                 <li class="list-group-item text-center">No data listed yet.</li>
                             <?php endif; ?>
                         </ul>

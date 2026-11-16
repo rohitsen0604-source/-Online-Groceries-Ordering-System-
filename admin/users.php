@@ -46,7 +46,7 @@
                     </th>
                 </tr>
                 <?php endwhile; ?>
-                <?php if(!$qry->fetchArray()): ?>
+                <?php if($i == 1): ?>
                     <tr>
                         <th class="text-center p-0" colspan="5">No data display.</th>
                     </tr>

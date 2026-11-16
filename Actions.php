@@ -352,7 +352,7 @@ Class Actions extends DBConnection{
     function delete_user(){
         extract($_POST);
 
-        @$delete = $this->query("DELETE FROM `admin_list` where rowid = '{$id}'");
+        @$delete = $this->query("DELETE FROM `admin_list` where admin_id = '{$id}'");
         if($delete){
             $resp['status']='success';
             $_SESSION['flashdata']['type'] = 'success';
@@ -414,7 +414,7 @@ Class Actions extends DBConnection{
     function delete_customer(){
         extract($_POST);
 
-        @$delete = $this->query("DELETE FROM `customer_list` where rowid = '{$id}'");
+        @$delete = $this->query("DELETE FROM `customer_list` where customer_id = '{$id}'");
         if($delete){
             $resp['status']='success';
             $_SESSION['flashdata']['type'] = 'success';
@@ -676,7 +676,7 @@ Class Actions extends DBConnection{
                      $resp['status'] = 'failed';
                      $resp['msg'] = 'failed.Error: '.$this->lastErrorMsg();
                 }
-                $inv_id = $this->query("SELECT last_insert_rowid() ")->fetchArray()[0];
+                $inv_id = $this->lastInsertRowID();
                 $data_items = "('{$last_id}','{$row['product_id']}','{$row['quantity']}','{$inv_id}')";
             $this->query("INSERT INTO `order_items` (`order_id`,`product_id`,`quantity`,`inventory_id`) VALUES {$data_items}");
         }
